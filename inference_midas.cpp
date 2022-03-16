@@ -29,33 +29,55 @@ SOFTWARE.
 
 #include <exception>
 
-int main()
+const cv::String keys =
+    "{help h usage ? |      | print this message   }"
+    "{@input         |      | input file           }"
+    "{@output        |<none>| output file          }"
+    "{f file | traced_model.pt | desired model file}"
+;
+
+
+int main(int argc, char **argv)
 {
-    // Initialize Python runtime and the numpy module
-    //Py_Initialize();
-    //np::initialize();
 
     try {
 
+        cv::CommandLineParser parser(argc, argv, keys);
+        parser.about("Movie Upscaler Application");
+        if (parser.has("help"))
+        {
+            parser.printMessage();
+            return 0;
+        }
+
+        const auto input = parser.get<cv::String>(0);
+        const auto output = parser.get<cv::String>(1);
+
+        const auto modelFile = parser.get<cv::String>("f");
+
         // Load an image
-        cv::Mat image = cv::imread("C:/solutions/MiDaS-cpp/sample_image/bicycle.jpg"); //"../sample_image/bicycle.jpg");
+        cv::Mat image = cv::imread(input);// "C:/solutions/MiDaS-cpp/sample_image/bicycle.jpg"); //"../sample_image/bicycle.jpg");
+
         int height = image.rows;
         int width = image.cols;
 
         // Load model
-        std::string model_path = "C:/solutions/MiDaS-cpp/python/traced_model.pt"; //"../traced_model.pt";
-        midas::MiDas m(width, height, model_path.c_str());
+        //std::string model_path = "C:/solutions/MiDaS-cpp/python/traced_model.pt"; //"../traced_model.pt";
+        midas::MiDas m(width, height, modelFile.c_str());
 
         // Depth prediction
         cv::Mat depth = m.inference(image);
 
         // visualize depth
         double min_val, max_val;
-        cv::Mat depth_visual;
         cv::minMaxLoc(depth, &min_val, &max_val);
         depth = 255 * (depth - min_val) / (max_val - min_val);
-        depth.convertTo(depth_visual, CV_8U);
-        cv::applyColorMap(depth_visual, depth_visual, 2); //COLORMAP_JET
+        cv::Mat depth_map;
+        depth.convertTo(depth_map, CV_8U);
+        cv::Mat depth_visual;
+        cv::applyColorMap(depth_map, depth_visual, 2); //COLORMAP_JET
+
+        cv::imshow("DEPTH_VISUAL", depth_visual);
 
         // Stack the image and depth map
         cv::Size img_size = image.size();
@@ -71,6 +93,10 @@ int main()
         cv::imshow("FULL", full);
         cv::waitKey(0);
 
+        if (!output.empty())
+        {
+            cv::imwrite(output, depth_map);
+        }
     }
     catch (const std::exception& ex) {
         std::cerr << typeid(ex).name() << ": " << ex.what() << '\n';
